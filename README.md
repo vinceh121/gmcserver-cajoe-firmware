@@ -1,3 +1,9 @@
+# gmcserver-cajoe-firmware
+
+This is a forked firmware for Cajoe Geiger counter boards to be compatible with [GMCServer](https://github.com/vinceh121/gmcserver)
+
+Original README:
+
 geiger
 ======
 

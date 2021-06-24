@@ -7,22 +7,21 @@
 
 #include <ESP8266WiFi.h>
 #include <WiFiManager.h>
-#include <PubSubClient.h>
+#include <ESP8266HTTPClient.h>
 
 #define PIN_TICK    D4
 
-#define MQTT_HOST   "mosquitto.space.revspace.nl"
-#define MQTT_PORT   1883
+#define HTTP_HOST   "gmc.vinceh121.me"
+#define HTTP_PORT   80
 
-#define TOPIC_GEIGER    "revspace/sensors/geiger"
+#define USER_ID     1234
+#define DEVICE_ID   1234
 
-#define LOG_PERIOD 10
-
-static char esp_id[16];
+#define LOG_PERIOD  10
 
 static WiFiManager wifiManager;
 static WiFiClient wifiClient;
-static PubSubClient mqttClient(wifiClient);
+static HTTPClient http;
 
 // the total count value
 static volatile unsigned long counts = 0;
@@ -44,11 +43,6 @@ void setup(void)
     Serial.begin(115200);
     Serial.println("GEIGER\n");
 
-    // get ESP id
-    sprintf(esp_id, "%08X", ESP.getChipId());
-    Serial.print("ESP ID: ");
-    Serial.println(esp_id);
-
     // setup OTA
     ArduinoOTA.setHostname("esp-geiger");
     ArduinoOTA.setPassword(OTA_PASSWORD);
@@ -67,25 +61,27 @@ void setup(void)
     attachInterrupt(digitalPinToInterrupt(PIN_TICK), tube_impulse, FALLING);
 }
 
-static bool mqtt_send(const char *topic, const char *value, bool retained)
+static bool http_send(int value)
 {
-    bool result = false;
-    if (!mqttClient.connected()) {
-        Serial.print("Connecting MQTT...");
-        mqttClient.setServer(MQTT_HOST, MQTT_PORT);
-        result = mqttClient.connect(esp_id, topic, 0, retained, "offline");
-        Serial.println(result ? "OK" : "FAIL");
+    if (http.begin(wifiClient, HTTP_HOST, HTTP_PORT, String("/api/v1/log2?AID=") + USER_ID + "&GID=" + DEVICE_ID + "&CPM=" + value)) {
+        Serial.print("Connecting HTTP...");
+        int status = http.get();
+        if (status == 200) {
+            Serial.println("Done!");
+            return true;
+        } else {
+            Serial.print("Failed!");
+            Serial.print(" Status: ")
+            Serial.println(status);
+        }
+        String line = http.getString();
+        Serial.print("-> ");
+        Serial.println(line);
+    } else {
+        Serial.println("Connect failed!");
     }
-    if (mqttClient.connected()) {
-        Serial.print("Publishing ");
-        Serial.print(value);
-        Serial.print(" to ");
-        Serial.print(topic);
-        Serial.print("...");
-        result = mqttClient.publish(topic, value, retained);
-        Serial.println(result ? "OK" : "FAIL");
-    }
-    return result;
+    http.end();
+    return false;
 }
 
 void loop()
@@ -110,16 +106,12 @@ void loop()
             cpm += secondcounts[i];
         }
 
-        // send over MQTT
-        char message[16];
-        snprintf(message, sizeof(message), "%d cpm", cpm);
-        if (!mqtt_send(TOPIC_GEIGER, message, true)) {
+        // send over HTTP
+        if (!http_send(cpm)) {
             Serial.println("Restarting ESP...");
             ESP.restart();
         }
     }
-    // keep MQTT alive
-    mqttClient.loop();
 
     // allow OTA
     ArduinoOTA.handle();
