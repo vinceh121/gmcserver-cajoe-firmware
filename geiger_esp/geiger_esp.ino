@@ -9,7 +9,7 @@
 #include <WiFiManager.h>
 #include <ESP8266HTTPClient.h>
 
-#define PIN_TICK    D4
+#define PIN_TICK    4
 
 #define HTTP_HOST   "gmc.vinceh121.me"
 #define HTTP_PORT   80
@@ -65,13 +65,13 @@ static bool http_send(int value)
 {
     if (http.begin(wifiClient, HTTP_HOST, HTTP_PORT, String("/api/v1/log2?AID=") + USER_ID + "&GID=" + DEVICE_ID + "&CPM=" + value)) {
         Serial.print("Connecting HTTP...");
-        int status = http.get();
+        int status = http.GET();
         if (status == 200) {
             Serial.println("Done!");
             return true;
         } else {
             Serial.print("Failed!");
-            Serial.print(" Status: ")
+            Serial.print(" Status: ");
             Serial.println(status);
         }
         String line = http.getString();
@@ -116,4 +116,3 @@ void loop()
     // allow OTA
     ArduinoOTA.handle();
 }
-
